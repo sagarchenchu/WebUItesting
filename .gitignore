@@ -1,0 +1,27 @@
+# Maven build output
+target/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Recorded events output file (optional — keep if you want to review last session)
+recorded_events.json
+
+# Logs
+*.log
