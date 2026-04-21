@@ -23,14 +23,26 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * ChromeDebugLauncher — main entry point for the WebUI Testing recorder.
  *
- * <p>Workflow:
+ * <p>Can be used as a standalone executable <em>or</em> embedded in any Java/Maven
+ * project as a library dependency (artifact {@code com.webuitesting:WebUItesting:1.0-SNAPSHOT}).
+ *
+ * <p><b>Library usage (recommended):</b>
+ * <pre>{@code
+ *   ChromeDebugLauncher recorder = ChromeDebugLauncher.create().invoke();
+ *   // … interact with the browser …
+ *   recorder.stop();
+ * }</pre>
+ *
+ * <p><b>Workflow:</b>
  * <ol>
  *   <li>Launches Chrome with the remote-debugging port enabled (9222).</li>
  *   <li>Injects a recorder script into every page the user navigates to.</li>
  *   <li>The injected script disables regular left-clicks and shows a custom
- *       right-click context menu with the following actions:
- *       Click, Select, Assert with Text, isEnabled, isVisible, isEditable,
- *       getTableHeaders, getTableData, Hover.</li>
+ *       right-click context menu with element-aware actions:
+ *       Click, Type, Clear, Expand &amp; Select Option, Select This Option,
+ *       Assert with Text, isEnabled, isVisible, isEditable,
+ *       Get Table Headers, Get Table Data, Hover,
+ *       Handle Alert OK/Cancel, File Upload, Handle Download.</li>
  *   <li>Each action is stored as a JSON event in {@code window.__recordedEvents}
  *       and periodically flushed to {@value #OUTPUT_FILE}.</li>
  * </ol>
@@ -78,6 +90,24 @@ public class ChromeDebugLauncher {
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    /**
+     * Convenience entry point — starts the recorder and returns {@code this}
+     * for fluent chaining, so the library can be used as a single expression:
+     *
+     * <pre>{@code
+     *   // Typical library usage:
+     *   ChromeDebugLauncher recorder = ChromeDebugLauncher.create().invoke();
+     *   // … user right-clicks elements in the browser …
+     *   recorder.stop();
+     * }</pre>
+     *
+     * @return this launcher (already started)
+     */
+    public ChromeDebugLauncher invoke() {
+        start();
+        return this;
+    }
 
     /** Starts the background poller that maintains script injection and flushes events. */
     public void start() {
@@ -207,8 +237,7 @@ public class ChromeDebugLauncher {
     // ── main ──────────────────────────────────────────────────────────────────
 
     public static void main(String[] args) throws Exception {
-        ChromeDebugLauncher launcher = ChromeDebugLauncher.create();
-        launcher.start();
+        ChromeDebugLauncher launcher = ChromeDebugLauncher.create().invoke();
 
         // Shut down cleanly when the JVM is terminated (e.g. Ctrl+C).
         Runtime.getRuntime().addShutdownHook(new Thread(launcher::stop, "shutdown-hook"));

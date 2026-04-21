@@ -161,6 +161,18 @@ class ChromeDebugLauncherTest {
                 () -> ChromeDebugLauncher.loadResource("/non-existent-file.js"));
     }
 
+    // ── invoke() API ──────────────────────────────────────────────────────────
+
+    @Test
+    void invokeMethod_existsAndReturnsChromeDebugLauncher() throws NoSuchMethodException {
+        // Verify the public invoke() method is present and returns ChromeDebugLauncher
+        // (return-type check) — no real browser needed.
+        var method = ChromeDebugLauncher.class.getMethod("invoke");
+        assertNotNull(method, "invoke() method must exist as a public API");
+        assertEquals(ChromeDebugLauncher.class, method.getReturnType(),
+                "invoke() must return ChromeDebugLauncher for fluent chaining");
+    }
+
     // ── OUTPUT_FILE constant ──────────────────────────────────────────────────
 
     @Test
