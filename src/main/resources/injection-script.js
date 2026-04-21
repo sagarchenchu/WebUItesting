@@ -6,10 +6,15 @@
  * Behavior:
  *   • Disables all regular left-clicks (contextmenu / keyboard / form submits
  *     are left intact so the page still navigates normally when desired).
- *   • On right-click, shows a custom "WebUI Recorder" context-menu over the
- *     target element with the following actions:
- *       Click | Select | Assert with Text | isEnabled | isVisible | isEditable
- *       Get Table Headers | Get Table Data | Hover
+ *   • On right-click, shows a custom "WebUI Recorder" context menu whose items
+ *     are tailored to the right-clicked element type:
+ *       – <select>              → Expand & Select, Click, assertions, …
+ *       – <option> in select    → Select This Option, …
+ *       – Editable text inputs  → Type, Clear (when non-empty), …
+ *       – <input type="file">   → File Upload, …
+ *       – All elements          → Click, Assert with Text, isEnabled, isVisible,
+ *                                 isEditable, Get Table Headers, Get Table Data, Hover
+ *       – Popup / download sect → Handle Alert OK/Cancel, Handle Download
  *   • Choosing an action executes it against the right-clicked element and
  *     appends one JSON event to window.__recordedEvents.  The event bundles
  *     the "mouse-pointed-at" info (element descriptor, mouse position) and
@@ -34,17 +39,72 @@
     var TOAST_ID  = '__wut_toast';
     var Z_MAX     = '2147483647';
 
-    var MENU_ITEMS = [
-        { id: 'click',           label: '▶  Click' },
-        { id: 'select',          label: '☑  Select' },
-        { id: 'assertWithText',  label: '✎  Assert with Text' },
-        { id: 'isEnabled',       label: '?  isEnabled' },
-        { id: 'isVisible',       label: '👁  isVisible' },
-        { id: 'isEditable',      label: '✏  isEditable' },
-        { id: 'getTableHeaders', label: '⊞  Get Table Headers' },
-        { id: 'getTableData',    label: '⊟  Get Table Data' },
-        { id: 'hover',           label: '⟳  Hover' }
-    ];
+    // ── Dynamic menu builder ──────────────────────────────────────────────────
+
+    /**
+     * Returns an ordered list of menu-item descriptors appropriate for the
+     * given element.  A descriptor is either:
+     *   { id: '<actionId>', label: '<display text>' }  — a clickable item
+     *   { id: '_sep' }                                  — a visual separator
+     */
+    function buildMenuItems(el) {
+        var tag       = el.tagName.toLowerCase();
+        var inputType = (el.getAttribute('type') || '').toLowerCase();
+        var items     = [];
+
+        // ── Dropdown (select) ─────────────────────────────────────────────────
+        if (tag === 'select') {
+            items.push({ id: 'expandDropdown', label: '▼  Expand & Select Option' });
+        }
+
+        // ── Option inside an expanded select ──────────────────────────────────
+        if (tag === 'option') {
+            items.push({ id: 'selectOption', label: '☑  Select This Option' });
+        }
+
+        // ── Editable text inputs / textarea ───────────────────────────────────
+        // Inputs without a type attribute default to "text" — represented by '' here.
+        var isTextInput = (
+            (tag === 'input' &&
+             ['text', 'email', 'password', 'search', 'tel', 'url', 'number', '']
+                 .indexOf(inputType) !== -1) ||
+            tag === 'textarea' ||
+            el.isContentEditable === true ||
+            el.contentEditable   === 'true'
+        );
+        if (isTextInput && !el.disabled && !el.readOnly) {
+            items.push({ id: 'type', label: '⌨  Type' });
+            // For input/textarea use .value; for contentEditable elements use .innerText.
+            var isContentEditable = el.isContentEditable === true || el.contentEditable === 'true';
+            var currentVal = isContentEditable ? el.innerText : (el.value || '');
+            if (currentVal.trim() !== '') {
+                items.push({ id: 'clear', label: '✕  Clear' });
+            }
+        }
+
+        // ── File upload ───────────────────────────────────────────────────────
+        if (tag === 'input' && inputType === 'file') {
+            items.push({ id: 'fileUpload', label: '📁  File Upload' });
+        }
+
+        // ── Standard actions (always shown) ───────────────────────────────────
+        items.push({ id: 'click',           label: '▶  Click' });
+        items.push({ id: 'assertWithText',  label: '✎  Assert with Text' });
+        items.push({ id: 'isEnabled',       label: '?  isEnabled' });
+        items.push({ id: 'isVisible',       label: '👁  isVisible' });
+        items.push({ id: 'isEditable',      label: '✏  isEditable' });
+        items.push({ id: 'getTableHeaders', label: '⊞  Get Table Headers' });
+        items.push({ id: 'getTableData',    label: '⊟  Get Table Data' });
+        items.push({ id: 'hover',           label: '⟳  Hover' });
+
+        // ── Separator + popup / download section ──────────────────────────────
+        items.push({ id: '_sep' });
+        items.push({ id: 'handleAlertOK',     label: '✔  Handle Alert — OK' });
+        items.push({ id: 'handleAlertCancel', label: '✖  Handle Alert — Cancel' });
+        items.push({ id: 'handleDownload',    label: '⬇  Handle Download' });
+
+        return items;
+    }
 
     // ── Utilities ─────────────────────────────────────────────────────────────
 
@@ -177,8 +237,16 @@
         });
         menu.appendChild(title);
 
-        // Menu items
-        MENU_ITEMS.forEach(function (item) {
+        // Menu items — built dynamically for the target element.
+        buildMenuItems(targetEl).forEach(function (item) {
+            // Separator
+            if (item.id === '_sep') {
+                var sep = document.createElement('div');
+                applyStyles(sep, { borderTop: '1px solid #45475a', margin: '4px 0' });
+                menu.appendChild(sep);
+                return;
+            }
+
             var row = document.createElement('div');
             row.textContent = item.label;
             applyStyles(row, {
@@ -237,20 +305,100 @@
 
         switch (actionId) {
 
+            // ── Dropdown: expand so individual options become right-clickable ──
+            case 'expandDropdown': {
+                var optCount = targetEl.options ? targetEl.options.length : 0;
+                // Expose the options as a visible list-box (max 10 rows).
+                targetEl.size = Math.min(optCount, 10);
+                targetEl.style.zIndex = String(parseInt(Z_MAX, 10) - 2);
+                result = {
+                    status: 'dropdown expanded',
+                    optionCount: optCount,
+                    note: 'Right-click an option to record a selectOption event'
+                };
+                break;
+            }
+
+            // ── Option inside an expanded select: record selection ─────────────
+            case 'selectOption': {
+                // Use closest() to handle options nested inside <optgroup> elements.
+                var selectEl = targetEl.closest ? targetEl.closest('select') : null;
+                result = {
+                    selectedValue: targetEl.value,
+                    selectedText:  targetEl.text || targetEl.innerText.trim(),
+                    selectElement: selectEl ? describeElement(selectEl) : null
+                };
+                // Collapse the select back to its normal single-line state.
+                if (selectEl) { selectEl.removeAttribute('size'); }
+                break;
+            }
+
+            // ── Type: record text to be typed into a text field ───────────────
+            case 'type': {
+                var textToType = window.prompt(
+                    'Type action\n\nEnter the text to type into this field:', '');
+                if (textToType === null) { return; } // user cancelled
+                result = { text: textToType };
+                break;
+            }
+
+            // ── Clear: record clearing a text field ───────────────────────────
+            case 'clear': {
+                // For contentEditable elements use innerText; for inputs/textareas use value.
+                var isEditable = targetEl.isContentEditable === true ||
+                                 targetEl.contentEditable   === 'true';
+                var clearedValue = isEditable ? targetEl.innerText.trim() : (targetEl.value || '');
+                result = { clearedValue: clearedValue };
+                break;
+            }
+
+            // ── File upload: record the file path to upload ───────────────────
+            case 'fileUpload': {
+                var filePath = window.prompt(
+                    'File Upload\n\nEnter the absolute path of the file to upload:', '');
+                if (filePath === null) { return; } // user cancelled
+                result = {
+                    filePath: filePath,
+                    note: 'Use element.sendKeys(filePath) to replay'
+                };
+                break;
+            }
+
+            // ── Handle Alert — OK ─────────────────────────────────────────────
+            case 'handleAlertOK': {
+                result = {
+                    action: 'OK',
+                    note: 'Use driver.switchTo().alert().accept() to replay'
+                };
+                break;
+            }
+
+            // ── Handle Alert — Cancel ─────────────────────────────────────────
+            case 'handleAlertCancel': {
+                result = {
+                    action: 'Cancel',
+                    note: 'Use driver.switchTo().alert().dismiss() to replay'
+                };
+                break;
+            }
+
+            // ── Handle Download ───────────────────────────────────────────────
+            case 'handleDownload': {
+                var downloadDir = window.prompt(
+                    'Handle Download\n\nEnter the directory path where the file should be saved:',
+                    '');
+                if (downloadDir === null) { return; } // user cancelled
+                result = {
+                    downloadDirectory: downloadDir,
+                    note: 'Set Chrome prefs download.default_directory to this path before replay'
+                };
+                break;
+            }
+
+            // ── Legacy / always-visible actions ───────────────────────────────
+
             case 'click':
                 result = { status: 'click recorded' };
-                break;
-
-            case 'select':
-                if (targetEl.tagName.toLowerCase() === 'select') {
-                    result = {
-                        options: Array.from(targetEl.options).map(function (o) {
-                            return { value: o.value, text: o.text, selected: o.selected };
-                        })
-                    };
-                } else {
-                    result = { status: 'element is not a <select>; select recorded' };
-                }
                 break;
 
             case 'assertWithText': {

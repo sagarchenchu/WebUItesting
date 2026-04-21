@@ -22,10 +22,13 @@ must be intentional and goes through the recorder.
 
 ## Available actions (right-click menu)
 
+The menu is context-sensitive — items shown depend on the element you right-click.
+
+### Always shown
+
 | Action | Description |
 |---|---|
 | **Click** | Records a click on the element |
-| **Select** | For `<select>` elements — records all options and their selected state |
 | **Assert with Text** | Prompts for expected text; records expected vs actual text and whether they match |
 | **isEnabled** | Records whether the element is enabled (`!disabled`) |
 | **isVisible** | Records whether the element is visible (display, visibility, opacity, size) |
@@ -33,6 +36,24 @@ must be intentional and goes through the recorder.
 | **Get Table Headers** | Records all `<th>` text values from the nearest `<table>` |
 | **Get Table Data** | Records all `<tr>`/`<td>` text values from the nearest `<table>` |
 | **Hover** | Records a hover action on the element |
+
+### Element-specific actions
+
+| Trigger | Action | Description |
+|---|---|---|
+| `<select>` | **Expand & Select Option** | Sets the dropdown to list-box mode so individual options become right-clickable |
+| `<option>` inside expanded select | **Select This Option** | Records `selectedValue`/`selectedText`; collapses the list-box |
+| Editable text input / textarea | **Type** | Prompts for text to type; records it as a `type` event |
+| Editable input / textarea with existing value | **Clear** | Records the current value that will be cleared |
+| `<input type="file">` | **File Upload** | Prompts for the file path; records it (use `sendKeys(path)` to replay) |
+
+### Popup & download section (always shown, below separator)
+
+| Action | Description |
+|---|---|
+| **Handle Alert — OK** | Records intent to accept a browser alert/confirm/prompt (`alert.accept()`) |
+| **Handle Alert — Cancel** | Records intent to dismiss a browser alert/confirm/prompt (`alert.dismiss()`) |
+| **Handle Download** | Prompts for a download directory; records it (set Chrome `download.default_directory` pref to replay) |
 
 ---
 
