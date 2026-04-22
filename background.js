@@ -51,13 +51,13 @@ function handleStartRecording(tabId) {
   if (recordingTabs.has(tabId)) return;   // already recording on this tab
 
   recordingTabs.add(tabId);
-  updateMenuState(true);
+  updateMenuState();
 
   chrome.tabs.sendMessage(tabId, { action: 'startRecording' }, (response) => {
     if (chrome.runtime.lastError) {
       console.warn('[PageSourceRecorder] Could not reach content script:', chrome.runtime.lastError.message);
       recordingTabs.delete(tabId);
-      updateMenuState(false);
+      updateMenuState();
     }
   });
 }
@@ -74,17 +74,18 @@ function handleStopRecording(tabId) {
   });
 
   recordingTabs.delete(tabId);
-  updateMenuState(false);
+  updateMenuState();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
- * Enable or disable the two context-menu items based on recording state.
- * When recording is active on ANY tab we flip both items so the UX stays
- * consistent regardless of which tab the user right-clicks on.
+ * Enable or disable the two context-menu items based on whether any tab is
+ * currently recording.  Checking the set size ensures that stopping one tab
+ * does not disable "stopPageSource" while another tab is still recording.
  */
-function updateMenuState(isRecording) {
+function updateMenuState() {
+  const isRecording = recordingTabs.size > 0;
   chrome.contextMenus.update(MENU_RECORD, { enabled: !isRecording });
   chrome.contextMenus.update(MENU_STOP,   { enabled:  isRecording });
 }
@@ -117,8 +118,6 @@ function downloadSource(htmlContent, tabId) {
 chrome.tabs.onRemoved.addListener((tabId) => {
   if (recordingTabs.has(tabId)) {
     recordingTabs.delete(tabId);
-    if (recordingTabs.size === 0) {
-      updateMenuState(false);
-    }
+    updateMenuState();
   }
 });

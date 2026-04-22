@@ -24,7 +24,10 @@
 (function () {
   'use strict';
 
-  // ── State ─────────────────────────────────────────────────────────────────
+  // ── Constants ──────────────────────────────────────────────────────────────
+
+  /** Number of characters used when comparing element text-content prefixes. */
+  const TEXT_MATCH_PREFIX_LENGTH = 50;
 
   let recording        = false;
   let combinedSource   = '';   // accumulated / merged HTML
@@ -172,7 +175,7 @@
     if (sameTagClass.length === 1) return sameTagClass[0];
 
     // 3. Match by tag + text content prefix (useful for <option>, <li>, etc.)
-    const targetText = (target.textContent || '').trim().substring(0, 50);
+    const targetText = (target.textContent || '').trim().substring(0, TEXT_MATCH_PREFIX_LENGTH);
     if (targetText) {
       const byText = sameTagClass.find(
         (c) => (c.textContent || '').trim().startsWith(targetText)
